@@ -25,21 +25,19 @@ const io = new Server(server, {
     origin: process.env.FRONTEND_URL || '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   },
-  pingInterval: 25000,        // How often to ping clients (ms)
-  pingTimeout: 20000,         // How long to wait for pong response (ms)
-  maxHttpBufferSize: 1e5,     // 100KB max message size (prevents abuse)
-  transports: ['websocket'],  // Skip HTTP long-polling — saves memory & CPU
-  allowUpgrades: false,       // No transport upgrade negotiation needed
-  perMessageDeflate: false,   // Disable per-message compression (saves CPU at scale)
+  pingInterval: 25000,
+  pingTimeout: 20000,
+  maxHttpBufferSize: 1e5,
+  transports: ['websocket', 'polling'],  // Allow both for compatibility
+  perMessageDeflate: false,
 });
 
-// Increase event listener limit for 1500+ socket connections
 server.setMaxListeners(0);
 
 // ── Middleware ──
-app.use(compression());                           // Gzip responses — ~70% bandwidth reduction
+app.use(compression());
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
-app.use(express.json({ limit: '100kb' }));        // Prevent oversized payload attacks
+app.use(express.json({ limit: '100kb' }));
 
 // ── Routes ──
 app.use('/api/admin', adminRoutes);
@@ -48,7 +46,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'API is running', uptime: process.uptime() });
 });
 
-// Base Route
 app.get('/', (req, res) => {
   res.send('API is running...');
 });
@@ -56,29 +53,33 @@ app.get('/', (req, res) => {
 // ── Socket.io handlers ──
 socketHandlers(io);
 
-// ── DB Connection & Server Start ──
+// ── Start Server FIRST, then connect DB ──
 const PORT = process.env.PORT || 5000;
 
-const startServer = async () => {
+// Start listening immediately so Render detects the port
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Connect to database after server is running
+const connectDB = async () => {
   try {
     let mongoUri = process.env.MONGODB_URI;
 
     if (process.env.NODE_ENV === 'production') {
-      // Production: connect directly to MongoDB Atlas
       if (!mongoUri) {
         console.error('ERROR: MONGODB_URI is required in production');
-        process.exit(1);
+        return;
       }
       await mongoose.connect(mongoUri, {
         maxPoolSize: 10,
         minPoolSize: 2,
-        serverSelectionTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 10000,
         socketTimeoutMS: 45000,
         bufferCommands: false,
       });
       console.log('Connected to MongoDB Atlas');
     } else {
-      // Development: try local MongoDB, then fall back to in-memory
       try {
         if (mongoUri) {
           await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 2000 });
@@ -105,13 +106,9 @@ const startServer = async () => {
     } catch (err) {
       console.log('Could not seed admin', err);
     }
-
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on port ${PORT}`);
-    });
   } catch (error) {
-    console.log('MongoDB connection error:', error);
+    console.error('MongoDB connection error:', error.message);
   }
 };
 
-startServer();
+connectDB();
