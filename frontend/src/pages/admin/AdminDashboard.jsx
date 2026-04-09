@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Plus, Edit2, Play, Users, Trash2 } from 'lucide-react';
 
-const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend.onrender.com';
+const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend-a3b5.onrender.com';
 const API_URL = rawUrl.replace(/\/+$/, '') + '/api';
 
 export default function AdminDashboard() {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import axios from 'axios';
 
-const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend.onrender.com';
+const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend-a3b5.onrender.com';
 const API_URL = rawUrl.replace(/\/+$/, '') + '/api';
 
 export default function AdminLogin() {

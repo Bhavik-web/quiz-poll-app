@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
 // Use env var or fallback to deployed backend URL
-const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend.onrender.com';
+const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend-a3b5.onrender.com';
 const SOCKET_URL = rawUrl.replace(/\/+$/, '');
 
 console.log('[Socket] Connecting to:', SOCKET_URL);

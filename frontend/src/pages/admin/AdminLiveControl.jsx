@@ -5,7 +5,7 @@ import { socket } from '../../utils/socket';
 import { Users, Play, SkipForward, BarChart2, StopCircle, ArrowLeft, Plus, Monitor, Edit2, Trash2 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
-const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend.onrender.com';
+const rawUrl = import.meta.env.VITE_BACKEND_URL || 'https://quizpoll-backend-a3b5.onrender.com';
 const API_URL = rawUrl.replace(/\/+$/, '') + '/api';
 
 export default function AdminLiveControl() {
