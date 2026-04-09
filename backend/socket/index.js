@@ -146,26 +146,24 @@ export const socketHandlers = (io) => {
     // ── PARTICIPANT: Submit Answer ──
     socket.on('submit_answer', async ({ roomCode, userId, questionId, selectedOption }, callback) => {
       try {
-        const room = await loadRoom(roomCode);
+        const code = roomCode.toUpperCase();
+        const room = await loadRoom(code);
         if (!room) return callback({ error: 'Room not found' });
         if (room.status !== 'active') return callback({ error: 'No active question' });
 
         const question = room.questions.find(q => q._id.toString() === questionId);
         if (!question) return callback({ error: 'Question not found' });
 
-        // Check duplicate answer (in-memory check — instant)
         const alreadyAnswered = room.responses.find(
           r => r.userId === userId && r.questionId.toString() === questionId
         );
         if (alreadyAnswered) return callback({ error: 'Already answered' });
 
-        // Determine correctness
         let isCorrect = false;
         if (question.type === 'quiz') {
           isCorrect = (selectedOption === question.correctAnswer);
         }
 
-        // Add response to in-memory cache
         room.responses.push({
           userId,
           questionId,
@@ -174,33 +172,29 @@ export const socketHandlers = (io) => {
           timestamp: new Date()
         });
 
-        // Update participant score in memory
         if (isCorrect) {
           const p = room.participants.find(p => p.id === userId);
           if (p) p.score += 10;
         }
 
-        markDirty(roomCode);
+        markDirty(code);
 
-        // Persist response to the separate Response collection (fire-and-forget)
         Response.create({
-          roomCode,
+          roomCode: code,
           questionId,
           userId,
           selectedOption,
           isCorrect
         }).catch(err => {
-          // Duplicate key error is expected if user somehow double-submits
           if (err.code !== 11000) {
             console.error('Failed to persist response:', err);
           }
         });
 
-        // Send updated response count for this question to admin
         const responsesForQ = room.responses.filter(
           r => r.questionId.toString() === questionId
         );
-        io.to(`admin_${roomCode}`).emit('responses_update', responsesForQ);
+        io.to(`admin_${code}`).emit('responses_update', responsesForQ);
 
         callback({ success: true, isCorrect });
       } catch (error) {
@@ -210,9 +204,11 @@ export const socketHandlers = (io) => {
 
     // ── ADMIN: Join Room Control ──
     socket.on('admin_join', async ({ roomCode }, callback) => {
-      socket.join(`admin_${roomCode}`);
+      const code = roomCode.toUpperCase();
+      socket.join(`admin_${code}`);
+      socket.join(code);
       try {
-        const room = await loadRoom(roomCode);
+        const room = await loadRoom(code);
         if (room) {
           callback({
             participantsCount: room.participants.length,
@@ -227,7 +223,8 @@ export const socketHandlers = (io) => {
     // ── ADMIN: Start Session ──
     socket.on('admin_start_session', async ({ roomCode }, callback) => {
       try {
-        const room = await loadRoom(roomCode);
+        const code = roomCode.toUpperCase();
+        const room = await loadRoom(code);
         if (!room) return callback({ error: 'Room not found' });
 
         room.status = 'active';
@@ -235,7 +232,7 @@ export const socketHandlers = (io) => {
           room.currentQuestionIndex = 0;
         }
         room.showResults = false;
-        markDirty(roomCode);
+        markDirty(code);
 
         const q = room.questions[room.currentQuestionIndex];
         if (!q) {
@@ -250,7 +247,8 @@ export const socketHandlers = (io) => {
           timeLimit: q.timeLimit
         };
 
-        io.to(roomCode).emit('new_question', currentQuestion);
+        console.log(`Starting session for room ${code}, emitting to ${io.sockets.adapter.rooms.get(code)?.size || 0} clients`);
+        io.to(code).emit('new_question', currentQuestion);
         callback({ success: true });
       } catch (ex) {
         callback({ error: ex.message });
@@ -260,12 +258,13 @@ export const socketHandlers = (io) => {
     // ── ADMIN: Next Question ──
     socket.on('admin_next_question', async ({ roomCode, index }, callback) => {
       try {
-        const room = await loadRoom(roomCode);
+        const code = roomCode.toUpperCase();
+        const room = await loadRoom(code);
         if (!room) return callback({ error: 'Room not found' });
 
         room.currentQuestionIndex = index;
         room.showResults = false;
-        markDirty(roomCode);
+        markDirty(code);
 
         const q = room.questions[index];
         if (!q) {
@@ -280,7 +279,7 @@ export const socketHandlers = (io) => {
           timeLimit: q.timeLimit
         };
 
-        io.to(roomCode).emit('new_question', currentQuestion);
+        io.to(code).emit('new_question', currentQuestion);
         callback({ success: true });
       } catch (ex) {
         callback({ error: ex.message });
@@ -290,11 +289,12 @@ export const socketHandlers = (io) => {
     // ── ADMIN: Show Results ──
     socket.on('admin_show_results', async ({ roomCode }, callback) => {
       try {
-        const room = await loadRoom(roomCode);
+        const code = roomCode.toUpperCase();
+        const room = await loadRoom(code);
         if (!room) return callback({ error: 'Room not found' });
 
         room.showResults = true;
-        markDirty(roomCode);
+        markDirty(code);
 
         const q = room.questions[room.currentQuestionIndex];
         if (!q) {
@@ -306,7 +306,7 @@ export const socketHandlers = (io) => {
           r => r.questionId.toString() === questionId.toString()
         );
 
-        io.to(roomCode).emit('show_results', { responses, correctAnswer: q.correctAnswer });
+        io.to(code).emit('show_results', { responses, correctAnswer: q.correctAnswer });
         callback({ success: true });
       } catch (ex) {
         callback({ error: ex.message });
@@ -316,23 +316,22 @@ export const socketHandlers = (io) => {
     // ── ADMIN: End Session ──
     socket.on('admin_end_session', async ({ roomCode }, callback) => {
       try {
-        const room = await loadRoom(roomCode);
+        const code = roomCode.toUpperCase();
+        const room = await loadRoom(code);
         if (!room) return callback({ error: 'Room not found' });
 
         room.status = 'finished';
-        markDirty(roomCode);
+        markDirty(code);
 
-        // Build leaderboard from in-memory data
         const leaderboard = [...room.participants]
           .sort((a, b) => b.score - a.score)
           .slice(0, 10);
 
-        io.to(roomCode).emit('session_ended', leaderboard);
+        io.to(code).emit('session_ended', leaderboard);
 
-        // Force immediate persist for finished rooms
         try {
           await Room.findOneAndUpdate(
-            { roomCode },
+            { roomCode: code },
             {
               $set: {
                 status: 'finished',
@@ -344,9 +343,8 @@ export const socketHandlers = (io) => {
           console.error('Failed to persist finished room:', err);
         }
 
-        // Clean up cache for finished rooms — free memory
-        dirtyRooms.delete(roomCode);
-        roomCache.delete(roomCode);
+        dirtyRooms.delete(code);
+        roomCache.delete(code);
 
         callback({ success: true });
       } catch (ex) {
