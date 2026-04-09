@@ -10,7 +10,6 @@ import compression from 'compression';
 import adminRoutes from './routes/adminRoutes.js';
 import { socketHandlers } from './socket/index.js';
 import Admin from './models/Admin.js';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +76,7 @@ const startServer = async () => {
       } catch {
         // Fall back to in-memory MongoDB for seamless dev experience
         console.log('Local MongoDB not available — starting in-memory server...');
+        const { MongoMemoryServer } = await import('mongodb-memory-server');
         const mongod = await MongoMemoryServer.create();
         mongoUri = mongod.getUri();
         await mongoose.connect(mongoUri, {
