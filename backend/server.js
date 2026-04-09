@@ -76,7 +76,6 @@ const connectDB = async () => {
         minPoolSize: 2,
         serverSelectionTimeoutMS: 10000,
         socketTimeoutMS: 45000,
-        bufferCommands: false,
       });
       console.log('Connected to MongoDB Atlas');
     } else {
@@ -91,7 +90,7 @@ const connectDB = async () => {
         console.log('Starting in-memory MongoDB for development...');
         const { MongoMemoryServer } = await import('mongodb-memory-server');
         const mongod = await MongoMemoryServer.create();
-        await mongoose.connect(mongod.getUri(), { bufferCommands: false });
+        await mongoose.connect(mongod.getUri());
         console.log('Connected to in-memory MongoDB (dev mode)');
       }
     }
