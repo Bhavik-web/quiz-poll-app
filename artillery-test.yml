@@ -1,0 +1,94 @@
+# ══════════════════════════════════════════════════════
+# Artillery Socket.io Stress Test
+# ══════════════════════════════════════════════════════
+# Tests Socket.io connections with realistic user behavior.
+#
+# Prerequisites:
+#   npm install -g artillery artillery-engine-socketio-v3
+#
+# Usage:
+#   npx artillery run artillery-test.yml
+#
+# With custom target:
+#   npx artillery run --target http://localhost:5000 artillery-test.yml
+#
+# Generate HTML report:
+#   npx artillery run --output report.json artillery-test.yml
+#   npx artillery report report.json
+# ══════════════════════════════════════════════════════
+
+config:
+  target: "http://localhost:5000"
+  phases:
+    # Phase 1: Warm up
+    - duration: 15
+      arrivalRate: 10
+      name: "Warm up"
+    # Phase 2: Ramp to 500
+    - duration: 30
+      arrivalRate: 30
+      maxVusers: 500
+      name: "Ramp to 500"
+    # Phase 3: Ramp to 1500
+    - duration: 30
+      arrivalRate: 50
+      maxVusers: 1500
+      name: "Ramp to 1500"
+    # Phase 4: Hold at peak
+    - duration: 60
+      arrivalRate: 50
+      maxVusers: 1500
+      name: "Sustained load"
+  engines:
+    socketio-v3:
+      transports: ["websocket"]
+  variables:
+    roomCode: "TEST01"   # Replace with your actual room code
+
+scenarios:
+  - name: "Participant joins and answers"
+    engine: socketio-v3
+    flow:
+      # Step 1: Join the room
+      - emit:
+          channel: "join_room"
+          data:
+            roomCode: "{{ roomCode }}"
+            userId: "artillery_{{ $uuid }}"
+          acknowledge:
+            timeout: 5000
+            match:
+              json: "$.success"
+              value: true
+
+      # Step 2: Wait for a question (simulate waiting)
+      - think: 5
+
+      # Step 3: Submit an answer
+      - emit:
+          channel: "submit_answer"
+          data:
+            roomCode: "{{ roomCode }}"
+            userId: "artillery_{{ $uuid }}"
+            questionId: "REPLACE_WITH_QUESTION_ID"
+            selectedOption: "1"
+          acknowledge:
+            timeout: 3000
+
+      # Step 4: Stay connected (simulate watching results)
+      - think: 30
+
+  - name: "Participant joins and waits"
+    engine: socketio-v3
+    flow:
+      # Some participants just join and watch without answering
+      - emit:
+          channel: "join_room"
+          data:
+            roomCode: "{{ roomCode }}"
+            userId: "watcher_{{ $uuid }}"
+          acknowledge:
+            timeout: 5000
+
+      # Stay connected for the duration
+      - think: 60
