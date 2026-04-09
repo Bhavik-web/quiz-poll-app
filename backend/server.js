@@ -19,24 +19,31 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+// Determine allowed origins
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? [process.env.FRONTEND_URL, process.env.FRONTEND_URL.replace(/\/$/, '')]
+  : true; // true = allow all origins
+
 // ── Socket.io — tuned for 1500 concurrent connections ──
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: false
   },
   pingInterval: 25000,
   pingTimeout: 20000,
   maxHttpBufferSize: 1e5,
-  transports: ['websocket', 'polling'],  // Allow both for compatibility
+  transports: ['polling', 'websocket'],  // polling first for reliability
   perMessageDeflate: false,
+  allowEIO3: true,
 });
 
 server.setMaxListeners(0);
 
 // ── Middleware ──
 app.use(compression());
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+app.use(cors({ origin: '*' }));  // Allow all origins for API
 app.use(express.json({ limit: '100kb' }));
 
 // ── Routes ──

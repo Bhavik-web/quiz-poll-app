@@ -23,7 +23,9 @@ export default function ParticipantRoom() {
 
   useEffect(() => {
     const joinRoom = () => {
+      console.log('[ParticipantRoom] Joining room:', roomCode, 'connected:', socket.connected);
       socket.emit('join_room', { roomCode, userId }, (response) => {
+        console.log('[ParticipantRoom] Join response:', response);
         if (response.error) {
           alert(response.error);
           navigate('/');
@@ -35,40 +37,53 @@ export default function ParticipantRoom() {
       });
     };
 
-    // Join on first load
-    joinRoom();
+    // Wait for socket to be connected before joining
+    if (socket.connected) {
+      joinRoom();
+    }
 
-    // Re-join on reconnect (socket loses room membership after disconnect)
-    socket.on('connect', () => {
+    // Join/re-join when socket connects or reconnects
+    const onConnect = () => {
+      console.log('[ParticipantRoom] Socket connected, joining room');
       setIsConnected(true);
       joinRoom();
-    });
+    };
 
-    socket.on('new_question', (q) => {
+    const onNewQuestion = (q) => {
+      console.log('[ParticipantRoom] Received new_question:', q.text);
       setQuestion(q);
       setStatus('active');
       setShowResults(false);
       setResultsData(null);
       setAnsweredId(null);
-    });
+    };
 
-    socket.on('show_results', (data) => {
+    const onShowResults = (data) => {
       setShowResults(true);
       setResultsData(data);
-    });
+    };
 
-    socket.on('session_ended', () => {
+    const onSessionEnded = () => {
       setStatus('finished');
-    });
-    
-    socket.on('disconnect', () => setIsConnected(false));
+    };
+
+    const onDisconnect = (reason) => {
+      console.log('[ParticipantRoom] Disconnected:', reason);
+      setIsConnected(false);
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('new_question', onNewQuestion);
+    socket.on('show_results', onShowResults);
+    socket.on('session_ended', onSessionEnded);
+    socket.on('disconnect', onDisconnect);
 
     return () => {
-      socket.off('new_question');
-      socket.off('show_results');
-      socket.off('session_ended');
-      socket.off('disconnect');
-      socket.off('connect');
+      socket.off('connect', onConnect);
+      socket.off('new_question', onNewQuestion);
+      socket.off('show_results', onShowResults);
+      socket.off('session_ended', onSessionEnded);
+      socket.off('disconnect', onDisconnect);
     };
   }, [roomCode, userId, navigate]);
 
