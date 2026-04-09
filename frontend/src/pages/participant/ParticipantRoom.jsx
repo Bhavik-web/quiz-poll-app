@@ -22,15 +22,26 @@ export default function ParticipantRoom() {
   });
 
   useEffect(() => {
-    socket.emit('join_room', { roomCode, userId }, (response) => {
-      if (response.error) {
-        alert(response.error);
-        navigate('/');
-        return;
-      }
-      setStatus(response.status);
-      setQuestion(response.currentQuestion);
-      setShowResults(response.showResults);
+    const joinRoom = () => {
+      socket.emit('join_room', { roomCode, userId }, (response) => {
+        if (response.error) {
+          alert(response.error);
+          navigate('/');
+          return;
+        }
+        setStatus(response.status);
+        setQuestion(response.currentQuestion);
+        setShowResults(response.showResults);
+      });
+    };
+
+    // Join on first load
+    joinRoom();
+
+    // Re-join on reconnect (socket loses room membership after disconnect)
+    socket.on('connect', () => {
+      setIsConnected(true);
+      joinRoom();
     });
 
     socket.on('new_question', (q) => {
@@ -51,7 +62,6 @@ export default function ParticipantRoom() {
     });
     
     socket.on('disconnect', () => setIsConnected(false));
-    socket.on('connect', () => setIsConnected(true));
 
     return () => {
       socket.off('new_question');
