@@ -63,31 +63,12 @@ const startServer = async () => {
   try {
     let mongoUri = process.env.MONGODB_URI;
 
-    // Dev fallback: use in-memory MongoDB if no external DB is available
-    if (!mongoUri || mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost')) {
-      try {
-        // Try connecting to local MongoDB first
-        if (mongoUri) {
-          await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 2000 });
-          console.log('Connected to local MongoDB');
-        } else {
-          throw new Error('No MONGODB_URI set');
-        }
-      } catch {
-        // Fall back to in-memory MongoDB for seamless dev experience
-        console.log('Local MongoDB not available — starting in-memory server...');
-        const { MongoMemoryServer } = await import('mongodb-memory-server');
-        const mongod = await MongoMemoryServer.create();
-        mongoUri = mongod.getUri();
-        await mongoose.connect(mongoUri, {
-          maxPoolSize: 10,
-          bufferCommands: false,
-        });
-        console.log('Connected to in-memory MongoDB (dev mode)');
-        console.log('⚠️  Data will be lost on restart. Use MongoDB Atlas for persistence.');
+    if (process.env.NODE_ENV === 'production') {
+      // Production: connect directly to MongoDB Atlas
+      if (!mongoUri) {
+        console.error('ERROR: MONGODB_URI is required in production');
+        process.exit(1);
       }
-    } else {
-      // Production: connect to external MongoDB (Atlas, etc.)
       await mongoose.connect(mongoUri, {
         maxPoolSize: 10,
         minPoolSize: 2,
@@ -95,7 +76,23 @@ const startServer = async () => {
         socketTimeoutMS: 45000,
         bufferCommands: false,
       });
-      console.log('Connected to MongoDB');
+      console.log('Connected to MongoDB Atlas');
+    } else {
+      // Development: try local MongoDB, then fall back to in-memory
+      try {
+        if (mongoUri) {
+          await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 2000 });
+          console.log('Connected to MongoDB');
+        } else {
+          throw new Error('No MONGODB_URI');
+        }
+      } catch {
+        console.log('Starting in-memory MongoDB for development...');
+        const { MongoMemoryServer } = await import('mongodb-memory-server');
+        const mongod = await MongoMemoryServer.create();
+        await mongoose.connect(mongod.getUri(), { bufferCommands: false });
+        console.log('Connected to in-memory MongoDB (dev mode)');
+      }
     }
 
     // Pre-seed default admin account
@@ -103,7 +100,7 @@ const startServer = async () => {
       const adminExists = await Admin.findOne({ email: 'admin@admin.com' });
       if (!adminExists) {
         await Admin.create({ email: 'admin@admin.com', password: 'admin' });
-        console.log('Pre-seeded default admin account: admin@admin.com / admin');
+        console.log('Pre-seeded default admin: admin@admin.com / admin');
       }
     } catch (err) {
       console.log('Could not seed admin', err);
@@ -111,8 +108,6 @@ const startServer = async () => {
 
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on port ${PORT}`);
-      console.log(`Socket.io transports: websocket only`);
-      console.log(`Network: http://10.125.1.133:${PORT}`);
     });
   } catch (error) {
     console.log('MongoDB connection error:', error);
