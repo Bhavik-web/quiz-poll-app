@@ -50,7 +50,7 @@ app.use(express.json({ limit: '100kb' }));
 app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'API is running', uptime: process.uptime() });
+  res.json({ status: 'API is running', version: 'v2.1', uptime: process.uptime() });
 });
 
 app.get('/', (req, res) => {
