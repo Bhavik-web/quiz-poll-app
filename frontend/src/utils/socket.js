@@ -6,9 +6,10 @@ const SOCKET_URL = rawUrl.replace(/\/+$/, '');
 
 export const socket = io(SOCKET_URL, {
   autoConnect: true,
-  transports: ['websocket'],       // Match server config — skip HTTP long-polling
-  reconnectionAttempts: 10,        // Don't retry forever (prevents zombie connections)
-  reconnectionDelay: 1000,         // Start retrying at 1 second
-  reconnectionDelayMax: 10000,     // Cap reconnection delay at 10 seconds
-  timeout: 20000,                  // Connection timeout
+  transports: ['polling', 'websocket'],  // Start with polling, upgrade to websocket
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 10000,
+  timeout: 20000,
+  withCredentials: false,
 });
